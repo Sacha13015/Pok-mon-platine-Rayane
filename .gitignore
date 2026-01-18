@@ -1,0 +1,11 @@
+# Python / PyCharm
+.venv/
+.idea/
+__pycache__/
+*.pyc
+
+# Assets lourds
+assets/
+*.mp3
+*.wav
+*.mp4
