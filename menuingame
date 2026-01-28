@@ -1,0 +1,387 @@
+import math
+import os
+import sys
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
+
+import pygame
+
+
+# ----------------------------
+# Helpers
+# ----------------------------
+def clamp(x: float, a: float, b: float) -> float:
+    return a if x < a else b if x > b else x
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def ease_out_cubic(t: float) -> float:
+    t = clamp(t, 0.0, 1.0)
+    return 1.0 - (1.0 - t) ** 3
+
+
+def load_image(path: str, scale_to: Optional[Tuple[int, int]] = None) -> pygame.Surface:
+    surf = pygame.image.load(path).convert_alpha()
+    if scale_to:
+        surf = pygame.transform.smoothscale(surf, scale_to)
+    return surf
+
+
+def make_placeholder_icon(size: int, label: str) -> pygame.Surface:
+    # Simple placeholder icon (rounded card + label)
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    rect = surf.get_rect()
+    pygame.draw.rect(surf, (255, 255, 255, 240), rect, border_radius=18)
+    pygame.draw.rect(surf, (0, 0, 0, 60), rect, width=3, border_radius=18)
+
+    font = pygame.font.SysFont("arial", max(16, size // 7), bold=True)
+    text = font.render(label, True, (30, 30, 30))
+    text_rect = text.get_rect(center=rect.center)
+    surf.blit(text, text_rect)
+    return surf
+
+
+def glow_surface(radius: int, alpha: int) -> pygame.Surface:
+    """Simple radial glow made of circles (cheap + good enough)."""
+    size = radius * 2
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    center = (radius, radius)
+    for r in range(radius, 0, -1):
+        a = int(alpha * (r / radius) ** 2)
+        pygame.draw.circle(s, (255, 255, 255, a), center, r)
+    return s
+
+
+# ----------------------------
+# Data
+# ----------------------------
+@dataclass
+class MenuItem:
+    key: str
+    label: str
+    direction: Tuple[int, int]  # (-1,0) left, (1,0) right, (0,-1) up, (0,1) down
+    base_scale: float
+    image_path: Optional[str] = None  # optional path to icon image
+
+
+# ----------------------------
+# Radial/Cross Menu
+# ----------------------------
+class CrossRadialMenu:
+    """
+    Overlay in-game cross/radial menu.
+
+    - Center anchor (player sprite optional)
+    - 4 items: up/down/left/right
+    - Keyboard: arrows/WASD to select; Enter/Space to confirm; Esc to close
+    - Mouse: hover selects; click confirms; right click closes
+    """
+
+    def __init__(
+        self,
+        screen_size: Tuple[int, int],
+        items: Tuple[MenuItem, ...],
+        center_sprite_path: Optional[str] = None,
+        center_sprite_size: Tuple[int, int] = (96, 96),
+        open_key: int = pygame.K_ESCAPE,
+    ):
+        self.w, self.h = screen_size
+        self.open_key = open_key
+
+        # Visual tuning (1280x720 friendly)
+        self.radius = 210  # distance from center
+        self.bg_alpha = 160  # overlay darkness
+        self.glow = glow_surface(radius=90, alpha=120)
+
+        # State
+        self.is_open = False
+        self.open_t = 0.0  # 0..1 open animation progress
+        self.open_speed = 7.0
+
+        self.selected_idx = 0
+        self.items = list(items)
+
+        # Load icons (or placeholders)
+        self.icon_base_size = 160
+        self.icons: Dict[str, pygame.Surface] = {}
+        for it in self.items:
+            if it.image_path and os.path.exists(it.image_path):
+                self.icons[it.key] = load_image(it.image_path, (self.icon_base_size, self.icon_base_size))
+            else:
+                # placeholder uses label
+                self.icons[it.key] = make_placeholder_icon(self.icon_base_size, it.label)
+
+        # Center sprite (optional)
+        self.center_sprite = None
+        if center_sprite_path and os.path.exists(center_sprite_path):
+            self.center_sprite = load_image(center_sprite_path, center_sprite_size)
+        else:
+            # placeholder "Joueur"
+            self.center_sprite = make_placeholder_icon(120, "Joueur")
+
+        # Fonts
+        self.font_label = pygame.font.SysFont("arial", 28, bold=True)
+        self.font_hint = pygame.font.SysFont("arial", 18)
+
+        # Mouse hover tracking
+        self.hover_idx: Optional[int] = None
+
+        # Output: last confirmed item key
+        self.last_action: Optional[str] = None
+
+    def toggle(self):
+        self.is_open = not self.is_open
+        if self.is_open:
+            self.open_t = 0.0
+            self.last_action = None
+
+    def close(self):
+        self.is_open = False
+
+    def handle_event(self, event: pygame.event.Event):
+        if event.type == pygame.KEYDOWN:
+            if not self.is_open:
+                if event.key == self.open_key:
+                    self.toggle()
+                return
+
+            # Menu open
+            if event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                self.close()
+                return
+
+            # Direction selection (arrow or WASD)
+            dir_map = {
+                pygame.K_LEFT: (-1, 0),
+                pygame.K_a: (-1, 0),
+                pygame.K_RIGHT: (1, 0),
+                pygame.K_d: (1, 0),
+                pygame.K_UP: (0, -1),
+                pygame.K_w: (0, -1),
+                pygame.K_DOWN: (0, 1),
+                pygame.K_s: (0, 1),
+            }
+            if event.key in dir_map:
+                d = dir_map[event.key]
+                for i, it in enumerate(self.items):
+                    if it.direction == d:
+                        self.selected_idx = i
+                        break
+                return
+
+            # Confirm
+            if event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                self.last_action = self.items[self.selected_idx].key
+                # (tu peux choisir de fermer ou non après validation)
+                # self.close()
+                return
+
+        if not self.is_open:
+            return
+
+        if event.type == pygame.MOUSEMOTION:
+            mx, my = event.pos
+            self.hover_idx = self._hit_test(mx, my)
+            if self.hover_idx is not None:
+                self.selected_idx = self.hover_idx
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 3:  # right click
+                self.close()
+                return
+            if event.button == 1:  # left click
+                mx, my = event.pos
+                hit = self._hit_test(mx, my)
+                if hit is not None:
+                    self.selected_idx = hit
+                    self.last_action = self.items[self.selected_idx].key
+                    # self.close()
+
+    def update(self, dt: float):
+        if not self.is_open:
+            return
+        self.open_t = clamp(self.open_t + dt * self.open_speed, 0.0, 1.0)
+
+    def draw(self, screen: pygame.Surface, game_frame: Optional[pygame.Surface] = None):
+        """
+        Draw menu overlay on top of game.
+        game_frame: optional screenshot of game behind; if None, we'll just darken screen.
+        """
+        if not self.is_open:
+            return
+
+        # Dark overlay
+        overlay = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, self.bg_alpha))
+        screen.blit(overlay, (0, 0))
+
+        # Center anchor
+        cx, cy = self.w // 2, self.h // 2
+
+        # Open animation: items come from outside to their final positions
+        t = ease_out_cubic(self.open_t)
+
+        # Draw center sprite with subtle "breathing"
+        breath = 1.0 + 0.015 * math.sin(pygame.time.get_ticks() * 0.004)
+        center_img = pygame.transform.smoothscale(
+            self.center_sprite,
+            (int(self.center_sprite.get_width() * breath), int(self.center_sprite.get_height() * breath)),
+        )
+        center_rect = center_img.get_rect(center=(cx, cy))
+        screen.blit(center_img, center_rect)
+
+        # Draw items
+        for i, it in enumerate(self.items):
+            base_icon = self.icons[it.key]
+
+            # Base placement (cross)
+            dx, dy = it.direction
+            target_x = cx + dx * self.radius
+            target_y = cy + dy * self.radius
+
+            # Animate from outside
+            start_x = cx + dx * (self.radius + 260)
+            start_y = cy + dy * (self.radius + 260)
+            x = lerp(start_x, target_x, t)
+            y = lerp(start_y, target_y, t)
+
+            # Selection effect
+            is_sel = (i == self.selected_idx)
+            sel_t = 1.0 if is_sel else 0.0
+
+            # Smooth selection (cheap smoothing using sin time)
+            # Optional: replace with proper spring later
+            pulse = 1.0 + (0.02 * math.sin(pygame.time.get_ticks() * 0.012) if is_sel else 0.0)
+
+            scale = it.base_scale * (1.08 if is_sel else 1.0) * pulse
+
+            # Move slightly toward center when selected
+            pull = 14 if is_sel else 0
+            x -= dx * pull
+            y -= dy * pull
+
+            iw, ih = base_icon.get_size()
+            scaled = pygame.transform.smoothscale(base_icon, (int(iw * scale), int(ih * scale)))
+            rect = scaled.get_rect(center=(int(x), int(y)))
+
+            # Glow (behind) for selected
+            if is_sel:
+                g = self.glow
+                g_rect = g.get_rect(center=rect.center)
+                screen.blit(g, g_rect)
+
+            # Draw icon
+            screen.blit(scaled, rect)
+
+            # Label under selected icon
+            if is_sel:
+                label = self.font_label.render(it.label, True, (255, 255, 255))
+                label_shadow = self.font_label.render(it.label, True, (0, 0, 0))
+                lx, ly = rect.centerx, rect.bottom + 18
+                sh_rect = label_shadow.get_rect(center=(lx + 2, ly + 2))
+                lb_rect = label.get_rect(center=(lx, ly))
+                screen.blit(label_shadow, sh_rect)
+                screen.blit(label, lb_rect)
+
+        # Small hint
+        hint = self.font_hint.render("↑↓←→ / WASD • Entrée = OK • Échap = fermer", True, (220, 220, 220))
+        screen.blit(hint, (20, self.h - 28))
+
+    def _hit_test(self, mx: int, my: int) -> Optional[int]:
+        cx, cy = self.w // 2, self.h // 2
+        t = ease_out_cubic(self.open_t)
+
+        for i, it in enumerate(self.items):
+            dx, dy = it.direction
+            target_x = cx + dx * self.radius
+            target_y = cy + dy * self.radius
+            start_x = cx + dx * (self.radius + 260)
+            start_y = cy + dy * (self.radius + 260)
+            x = lerp(start_x, target_x, t)
+            y = lerp(start_y, target_y, t)
+
+            base_icon = self.icons[it.key]
+            iw, ih = base_icon.get_size()
+            # Approx rect using base scale
+            scale = it.base_scale * (1.08 if i == self.selected_idx else 1.0)
+            rect = pygame.Rect(0, 0, int(iw * scale), int(ih * scale))
+            rect.center = (int(x), int(y))
+            if rect.collidepoint(mx, my):
+                return i
+        return None
+
+
+# ----------------------------
+# Demo / How to integrate later
+# ----------------------------
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((1280, 720))
+    pygame.display.set_caption("Cross/Radial Menu Demo")
+    clock = pygame.time.Clock()
+
+    # Replace these with YOUR icon paths later
+    items = (
+        MenuItem(key="pokedex", label="Pokédex", direction=(0, -1), base_scale=0.95, image_path=None),
+        MenuItem(key="bag", label="Sac", direction=(-1, 0), base_scale=1.10, image_path=None),
+        MenuItem(key="team", label="Équipe", direction=(1, 0), base_scale=1.00, image_path=None),
+        MenuItem(key="settings", label="Paramètres", direction=(0, 1), base_scale=0.85, image_path=None),
+    )
+
+    menu = CrossRadialMenu(
+        screen_size=(1280, 720),
+        items=items,
+        center_sprite_path=None,  # put your player sprite path here later
+        center_sprite_size=(96, 96),
+        open_key=pygame.K_ESCAPE,  # press ESC to open/close in this demo
+    )
+
+    # Fake game scene behind
+    bg = pygame.Surface((1280, 720))
+    bg.fill((35, 35, 45))
+
+    running = True
+    while running:
+        dt = clock.tick(60) / 1000.0
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                break
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                running = False
+                break
+
+            menu.handle_event(event)
+
+        # Update
+        menu.update(dt)
+
+        # Draw "game"
+        screen.blit(bg, (0, 0))
+        # (simulate some moving stuff)
+        t = pygame.time.get_ticks() * 0.001
+        pygame.draw.circle(screen, (90, 140, 255), (640 + int(math.sin(t) * 200), 360), 18)
+
+        # Draw menu overlay
+        menu.draw(screen)
+
+        # Demo: print action
+        if menu.last_action is not None:
+            # In your game, you'd route this to open submenus, etc.
+            # Here, we just show it briefly.
+            action_text = f"Action: {menu.last_action}"
+            txt = pygame.font.SysFont("arial", 22, bold=True).render(action_text, True, (255, 255, 255))
+            screen.blit(txt, (20, 20))
+
+        pygame.display.flip()
+
+    pygame.quit()
+    sys.exit()
+
+
+if __name__ == "__main__":
+    main()
