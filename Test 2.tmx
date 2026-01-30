@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" renderorder="right-down" width="34" height="27" tilewidth="32" tileheight="32" nextobjectid="1">
+ <tileset firstgid="1" name="1" tilewidth="32" tileheight="32" tilecount="256" columns="8">
+  <image source="Tiles/1.png" width="256" height="1024"/>
+ </tileset>
+ <tileset firstgid="257" name="2" tilewidth="32" tileheight="32" tilecount="256" columns="8">
+  <image source="Tiles/2.png" width="256" height="1024"/>
+  <terraintypes>
+   <terrain name="chemain" tile="161"/>
+  </terraintypes>
+  <tile id="123" terrain="0,0,0,"/>
+  <tile id="124" terrain="0,0,,0"/>
+  <tile id="131" terrain="0,,0,0"/>
+  <tile id="132" terrain=",0,0,0"/>
+  <tile id="152" terrain=",,,0"/>
+  <tile id="153" terrain=",,0,0"/>
+  <tile id="154" terrain=",,0,"/>
+  <tile id="160" terrain=",0,,0"/>
+  <tile id="161" terrain="0,0,0,0"/>
+  <tile id="162" terrain="0,,0,"/>
+  <tile id="168" terrain=",0,,"/>
+  <tile id="169" terrain="0,0,,"/>
+  <tile id="170" terrain="0,,,"/>
+ </tileset>
+ <tileset firstgid="513" name="3" tilewidth="32" tileheight="32" tilecount="256" columns="8">
+  <image source="Tiles/3.png" width="256" height="1024"/>
+ </tileset>
+ <tileset firstgid="769" name="4" tilewidth="32" tileheight="32" tilecount="256" columns="8">
+  <image source="Tiles/4.png" width="256" height="1024"/>
+  <terraintypes>
+   <terrain name="Montée" tile="32"/>
+  </terraintypes>
+  <tile id="22" terrain="0,0,0,"/>
+  <tile id="23" terrain="0,0,,0"/>
+  <tile id="24" terrain=",,,0"/>
+  <tile id="25" terrain=",,0,0"/>
+  <tile id="26" terrain=",,0,"/>
+  <tile id="30" terrain="0,,0,0"/>
+  <tile id="31" terrain=",0,0,0"/>
+  <tile id="32" terrain=",0,,0"/>
+  <tile id="33" terrain="0,0,0,0"/>
+  <tile id="34" terrain="0,,0,"/>
+  <tile id="40" terrain=",0,,"/>
+  <tile id="41" terrain="0,0,,"/>
+  <tile id="42" terrain="0,,,"/>
+ </tileset>
+ <layer name="Layer 1" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt0D0KACAMg1HRzSN5/4OJuHRo/UGsDl8gcx4J4W1y6n0dHDhw4Dgx4PjDIfdx6BYcOCyDt0Pbby0RhzR4OawfPB0jg5djZrjtWNm/7dgxSEcFthQJew==
+  </data>
+ </layer>
+ <layer name="Layer 2" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJxjYBgFo2BwAEYc4hmMDAtobTc/Ee6gNxgs7hjs4MdAO2AUYAV/B0ECFh9oB4yCQQ0KGHGXHz9pYN9gSY+DxR34wGAoP0AglWng7EYOg4FyB3L+OMM0sOEx0O5Ih8aHOBYxWgNgWXUAn/yZQRIvIAAAAdoPmQ==
+  </data>
+ </layer>
+ <layer name="Layer3" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt0zEOgCAMheGmbK6eRJ3UST2L97+CraQDDXFTmvj+hJkvLRAhhJ7qUmtBDo6yKA6U031E2EkEgwZHGRxlERz+zw5MNHI7jzWL4fyho/YmdCd9aj8Pm8XbDj8De5MTf+vw6b2LnBWOu03u2+UcFccFgm4LKQ==
+  </data>
+ </layer>
+ <layer name="Layer 4" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt1DEKACAMA8Cis88U//8DJ6EoKg42GZIXHG1aM2xKNmsZjJBDjotBjtWBDsMshoMhDA51g8/B9jca2CLHakDerDd4R00Yx7yLSAd6F96w6+TvefgunO4iwsH0I5B5NXTSLw5t
+  </data>
+ </layer>
+ <layer name="Layer 5" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt1DkSgDAIBVDGNGk8g/e/jnY63sVkbBwkCy5AQfHrvPkQIgBEhczDmSVlDDoGd9zfd4c7Wo49ZVNwlLpwhx3HdTckHbUupBzYoOWYgg0H1Yu0g5qJO+w58t1Y0e2QduDb9beDmkPNIOVoGb529O7CW0dp93v/xFMH913uLCQcnC5yDiwcqnI=
+  </data>
+ </layer>
+ <layer name="Layer 6" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztlstKAzEUhkNn0UcYqZvC7Opm8IKirZdqC7YqeAVrFbw+cJ/IL5ChISYmtU3ThT98MEwOPV9PDqVCCLFmITSl8Vy6Co0U2c93No9Qn9JCiJPpofdzOdQVPheb1ywe+vMm51uwDTvZ1MHnEuqQ85kt2IDc6K2zz/kBtKEDh4Z3U+Hq7duPQvXPHefyu55Q04VTOIMe9C37NE+KzO6gz/ycmgEM4QIu4SqChy26xzU1N3ALd3APD3/0aNWEaChm8ZB5pGYETzCGZ3hZ4DxytZ8+j1dq3uAdPuATvub0mGjzcM3C9IiRUI+YkQ6r4iGj/3al9Eg1B9NDpoHLemKfKinnUu1Gyv2QqWawyx3t1X6vXYbHEQ7HK+CROv+7mf4uXP89Y/VxUfVftIPZ13fXsWawzHv+BoATI/A=
+  </data>
+ </layer>
+ <layer name="Layer 7" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzNlrFOw0AMhq9kKFuzpcDQQCfKA7LQrTwELUspS9KOvAds8Dg40ln8snwX34UgLP1D1Uv85bfPsnPD4p30Ab8rL4yp0GRgTi0+SV+QP8QxG5mDQ+ZGBuYYM78WXKsh9Xiiw1tFO+Ulsjc4sAaly/NjT4dfFG08i/zGkEqfO6cvOi8eAxzIclE4d6noqoizWTlCXqAOpGvKd6NoIZi4xlpNc73o9EA6RjhQy+Lnuw4GjjLRi64mdQ9DRboDjo335fls/JpIBs3f1wgH93ND59a/UJOlYOiea71OEQ7s5xiLpSayHszO8WbkYJZW4bHURHph6U8OvPc8+zQeK0fIi77g5yUHa2/kkDVJ8YI5Ft4TnsU5HLGaTKkvznvuLL5H8wQ5bunMXPFh1dOfM2IogeNe8UpyyJ0FZ9HOs6xAPCu2kf6siGGe6AcydLsN3mWei1JyXqX2hoXDOduMa0Ep90TjkPsC7nqNyLWe6L0Q2g9TOOSdxZ23Fv814tu1/TiXAwN7Fn3S/KoHMlg4UGNGiOOv479wfAOt/Z5u
+  </data>
+ </layer>
+ <layer name="Layer 8" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztlstOAjEYRgd4CBAWoMQFw0PgDvFColwSUIyisvUNdKdvp66UlboS3gFjPBNCMkxaptN02o1fcjJJM+1/5m/TjOfZTzXroKggrj12qe9D3ZLHC7wKxnX7cJlZPvM8Cxn1ee8wNeixShmHSgIPWXQ9GtTek9TfynleMUIpp+5xl+C7mry7L3l/m5o7EcoRFz+7ThrnU+QRUA15LPiGH439/FWcE+xJReCQh3rM3piMSi9cedjuhczDdi9kZ+N/T9z1IkiNmoVQH3xDvVC5j0UupuqvkrSvH9zNn/AFzwbv6U0eR3AM7dDYN7VnMIc3Sx5d6EE/Zo0WHMBhSh7nMIKLmDVO4BQ6KXncwC1MYtYYwBDOUvJQzRWM4dqxh4noeNzzn/Jg4H81HJ376BGHJ8Mef5SgKfE=
+  </data>
+ </layer>
+ <layer name="Layer 9" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt0DEKACAIRmGhYzRENpX3v19Ck1NT5PA++MHxoYrI8HWfPrxvls988/ENAAD+q+V3wdGSdGT5x6AjoCOiI7IkHVls3/sJKw==
+  </data>
+ </layer>
+ <layer name="Layer10" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztwTEBAAAAwqD1T20Hb6AAAADgNw5YAAE=
+  </data>
+ </layer>
+ <layer name="Layer 11" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzt1jEOgDAMA8B8rzAVJmCi/P8PeKxURVhpy+STvMXyGrNvCVmQlbiNYjYysiF7oMvyNmoHciJXoMvyNmo3UpAn0GV5G7O7IiIiItL64y9njPx7e4z8e3vo7zV7ATAUECE=
+  </data>
+ </layer>
+ <layer name="Layer 12" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztjrEOgjAYBsujoBMwqZPwBOqETOqkrsgETOqzc0OnRocWA4n5LrmhSfP9Z8xn4siYBS6jLx8mIuF+iplHxy/ad7jHg32v2FrjxmMzpN2lxCNW9r1lK8fCYzOk3eWEZ7yETwS1u1zxhvcRHUIIIYQQ4n+o8YHNzB0tdtjP3PHEF74nvjsAAuUMjg==
+  </data>
+ </layer>
+ <layer name="Layer 13" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztkTEKgDAUQ9u7qJM6qZN6H3VS7w9m7PDRtkS65MHbQtrwnUuj8s7VsPGcXC4tejvYf/TH5nIZ0DvCKei3tls5JjN6F7gG/dZ2K/cG446M7Yw7pm63+PuOsTC2CCGEEEIIDhvc4VH4Hye84F3g7Qd4Mgv1
+  </data>
+ </layer>
+ <layer name="Layer 14" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJzl0k9LAkEYx/GBzU7myZLVg6t7Wvei2aVSwf5BtS5UKlgqVKvv/yX03VwvA00EM06yD3xwcOB5fuwzQvz/OkABh5ZzFHGEElxUUZPOJqrjCHGKLs5Q5r9jnKCBJnzpbKLOmX2BS/TQx8DZ3AVoIZTOJmrIzCtc4wa3uHMMDVPUPTMf8IgII8SKHC53VdQ0Z32i3zNeMMYEU8WMBndN1DVnmdHrFW+YY4HlLzkqYpPF15jjnV4f+ESCFdY/9E934mU5Ujpz/KW2O2mnOfgNLefQvZN9zOFm+/CE/Z18vwthdycBs1sZW99CrggjxJZzjDHB1HKOORZYWs6RYIW14Tn7sP9dZlTtf5dvVLX/vL3RPNYXjTAhqQ==
+  </data>
+ </layer>
+ <layer name="Top layer" width="34" height="27">
+  <data encoding="base64" compression="zlib">
+   eJztkjEOQEAUBXePggoVKpwMFSpUuLA5hRfxJpn6zd9sCMaYt0hiCClmUduRs19gKe6o2K+xEXe07HfYizuUDNw+4iR+g5n9BVdxx8b+joe442T/wvvHf9MYY8w3eAAsGwiJ
+  </data>
+ </layer>
+</map>
