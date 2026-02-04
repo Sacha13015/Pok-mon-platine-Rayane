@@ -1,8 +1,14 @@
+import math
+import os
+import random
+import unicodedata
+
 import pygame
 import pytmx
 import pyscroll
-import os
-import unicodedata
+
+from pokemon_names import POKEMON_NAMES
+from pnj import PNJ
 
 
 def _norm(s: str) -> str:
@@ -71,6 +77,7 @@ class TeamFollower(pygame.sprite.Sprite):
         self.speed = max(1, int(speed))
         self.y_offset = int(y_offset)
         self.anim_every = max(1, int(anim_every))
+        self.happy_timer = 0
 
         full_path = _abs_from_code(spritesheet_path)
 
@@ -133,6 +140,7 @@ class TeamFollower(pygame.sprite.Sprite):
             self.timer = 0
             self.direction = getattr(self.player, "direction", 0)
             self.image = self.frames[self.direction][self.frame]
+            self._apply_happy_effects()
             return
 
         # target derrière le joueur
@@ -187,6 +195,82 @@ class TeamFollower(pygame.sprite.Sprite):
         # clamp sécurité
         self.frame = max(0, min(self.frame, len(self.frames[self.direction]) - 1))
         self.image = self.frames[self.direction][self.frame]
+        self._apply_happy_effects()
+
+    def play_happy_animation(self, duration=40):
+        self.happy_timer = max(self.happy_timer, int(duration))
+
+    def _apply_happy_effects(self):
+        if self.happy_timer <= 0:
+            return
+        self.happy_timer -= 1
+
+        jump = int(4 * abs(math.sin(self.happy_timer / 4.0)))
+        self.rect.y -= jump
+
+        happy_image = self.image.copy()
+        bubble_pos = (happy_image.get_width() - 7, 6)
+        pygame.draw.circle(happy_image, (255, 255, 255, 230), bubble_pos, 5)
+        pygame.draw.circle(happy_image, (255, 200, 0, 240), bubble_pos, 3)
+        self.image = happy_image
+
+
+class WildPokemonSprite(pygame.sprite.Sprite):
+    _sheet_cache = None
+
+    def __init__(self, position, tile_size, spritesheet_path, species, species_index):
+        super().__init__()
+        self.tile_size = tile_size
+        self.species = species
+        self.species_index = species_index
+        self.image = self._get_frame_for_species(spritesheet_path)
+        self.rect = self.image.get_rect(topleft=position)
+        self.bob_timer = random.randint(0, 30)
+        self.base_y = self.rect.y
+
+    def _get_frame_for_species(self, spritesheet_path):
+        if WildPokemonSprite._sheet_cache is None:
+            try:
+                WildPokemonSprite._sheet_cache = pygame.image.load(spritesheet_path).convert_alpha()
+            except Exception:
+                fallback = pygame.Surface((self.tile_size, self.tile_size), pygame.SRCALPHA)
+                pygame.draw.circle(fallback, (200, 80, 80), (self.tile_size // 2, self.tile_size // 2), self.tile_size // 2)
+                return fallback
+
+        sheet = WildPokemonSprite._sheet_cache
+        frame_w = self.tile_size
+        frame_h = self.tile_size
+        cols = max(1, sheet.get_width() // frame_w)
+        rows = max(1, sheet.get_height() // frame_h)
+        total = cols * rows
+        index = self.species_index % total if total else 0
+        fx = index % cols
+        fy = index // cols
+        rect = pygame.Rect(fx * frame_w, fy * frame_h, frame_w, frame_h)
+        frame = sheet.subsurface(rect).copy()
+        return pygame.transform.smoothscale(frame, (self.tile_size, self.tile_size))
+
+    def update(self):
+        self.bob_timer = (self.bob_timer + 1) % 60
+        offset = 1 if self.bob_timer < 30 else -1
+        self.rect.y = self.base_y + offset
+
+
+class ItemSprite(pygame.sprite.Sprite):
+    def __init__(self, name, position, image_path=None, size=24):
+        super().__init__()
+        self.name = name
+        self.image = None
+        if image_path:
+            try:
+                self.image = pygame.image.load(image_path).convert_alpha()
+            except Exception:
+                self.image = None
+        if self.image is None:
+            self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(self.image, (180, 120, 60), (size // 2, size // 2), size // 2)
+            pygame.draw.circle(self.image, (120, 80, 40), (size // 2, size // 2), size // 2, 2)
+        self.rect = self.image.get_rect(topleft=position)
 
 
 class Map:
@@ -212,7 +296,10 @@ class Map:
         zoom_w = screen_size[0] / (self.tmx_data.width * self.tmx_data.tilewidth)
         zoom_h = screen_size[1] / (self.tmx_data.height * self.tmx_data.tileheight)
         auto_zoom = min(zoom_w, zoom_h)
-        self.renderer.zoom = force_zoom if force_zoom else max(min(auto_zoom, max_zoom), min_zoom)
+        self.default_zoom = force_zoom if force_zoom else max(min(auto_zoom, max_zoom), min_zoom)
+        self.full_zoom = min(zoom_w, zoom_h)
+        self.overview_zoom = False
+        self.renderer.zoom = self.default_zoom
 
         # Group pyscroll (caméra + draw)
         self.group = pyscroll.PyscrollGroup(map_layer=self.renderer, default_layer=2)
@@ -237,6 +324,17 @@ class Map:
         self.obj_collisions = []
         self.load_object_collisions()
         self.interact_zones = self.get_interact_zones()
+        self.grass_tiles = self._collect_grass_tiles()
+        self.water_tiles = self._collect_water_tiles()
+        self.load_npcs()
+        self.items = pygame.sprite.Group()
+        self.load_items()
+
+        self.wild_pokemons = pygame.sprite.Group()
+        self._wild_spritesheet = _abs_from_code("sprites_pokemons.png")
+        self._spawn_wild_pokemons()
+        self.wild_encounter_cooldown_ms = 1500
+        self.last_wild_encounter = 0
 
         # ✅ Follower seulement si sprite fourni (slot 1 équipe)
         self.follower = None
@@ -277,6 +375,136 @@ class Map:
                 pass
         self.follower = None
 
+    def _collect_grass_tiles(self):
+        tiles = []
+        for layer in self.tmx_data.visible_layers:
+            if not hasattr(layer, "name"):
+                continue
+            name_lower = layer.name.lower()
+            if "herbe" not in name_lower and "grass" not in name_lower:
+                continue
+            if not hasattr(layer, "tiles"):
+                continue
+            for x, y, gid in layer.tiles():
+                if gid:
+                    rect = pygame.Rect(
+                        x * self.tmx_data.tilewidth,
+                        y * self.tmx_data.tileheight,
+                        self.tmx_data.tilewidth,
+                        self.tmx_data.tileheight
+                    )
+                    tiles.append(rect)
+        return tiles
+
+    def _is_water_gid(self, gid: int) -> bool:
+        if not gid:
+            return False
+        props = self.tmx_data.get_tile_properties_by_gid(gid)
+        if not props:
+            return False
+        for key in ("water", "eau", "surf", "swim"):
+            if key in props:
+                return True
+        terrain = props.get("terrain") or props.get("type")
+        if terrain:
+            return str(terrain).lower() in ("water", "eau", "lac", "mer", "river")
+        return False
+
+    def _collect_water_tiles(self):
+        tiles = []
+        for layer in self.tmx_data.visible_layers:
+            if not hasattr(layer, "name"):
+                continue
+            name_lower = layer.name.lower()
+            is_water_layer = any(token in name_lower for token in ("water", "eau", "lac", "mer", "river"))
+            if not hasattr(layer, "tiles"):
+                continue
+            for x, y, gid in layer.tiles():
+                if not gid:
+                    continue
+                if is_water_layer or self._is_water_gid(gid):
+                    rect = pygame.Rect(
+                        x * self.tmx_data.tilewidth,
+                        y * self.tmx_data.tileheight,
+                        self.tmx_data.tilewidth,
+                        self.tmx_data.tileheight
+                    )
+                    tiles.append(rect)
+        return tiles
+
+    def is_water_tile(self, x, y):
+        for rect in self.water_tiles:
+            if rect.collidepoint(x, y):
+                return True
+        return False
+
+    def _random_grass_position(self):
+        if not self.grass_tiles:
+            return None
+        rect = random.choice(self.grass_tiles)
+        return rect.topleft
+
+    def _pick_wild_species(self):
+        pool = [name for name in POKEMON_NAMES if not name.endswith("_femelle")]
+        if not pool:
+            return "pokemon"
+        return random.choice(pool)
+
+    @staticmethod
+    def _format_species_name(species: str) -> str:
+        parts = species.split("_", 1)
+        name = parts[1] if len(parts) > 1 else species
+        return name.replace("_", " ").capitalize()
+
+    def _spawn_wild_pokemons(self):
+        if not self.grass_tiles:
+            return
+        count = min(8, max(2, len(self.grass_tiles) // 20))
+        for _ in range(count):
+            pos = self._random_grass_position()
+            if pos is None:
+                continue
+            species = self._pick_wild_species()
+            species_index = POKEMON_NAMES.index(species) if species in POKEMON_NAMES else 0
+            sprite = WildPokemonSprite(pos, self.tmx_data.tilewidth, self._wild_spritesheet, species, species_index)
+            self.wild_pokemons.add(sprite)
+            self.group.add(sprite, layer=self._player_layer)
+
+    def _respawn_wild_pokemon(self):
+        pos = self._random_grass_position()
+        if pos is None:
+            return
+        species = self._pick_wild_species()
+        species_index = POKEMON_NAMES.index(species) if species in POKEMON_NAMES else 0
+        sprite = WildPokemonSprite(pos, self.tmx_data.tilewidth, self._wild_spritesheet, species, species_index)
+        self.wild_pokemons.add(sprite)
+        self.group.add(sprite, layer=self._player_layer)
+
+    def is_player_in_grass(self, player_rect):
+        for rect in self.grass_tiles:
+            if rect.colliderect(player_rect):
+                return True
+        return False
+
+    def check_wild_encounter(self, player_rect):
+        now = pygame.time.get_ticks()
+        if now - self.last_wild_encounter < self.wild_encounter_cooldown_ms:
+            return None
+        if not self.is_player_in_grass(player_rect):
+            return None
+        for sprite in list(self.wild_pokemons):
+            if sprite.rect.colliderect(player_rect):
+                if random.random() <= 0.35:
+                    self.last_wild_encounter = now
+                    self.wild_pokemons.remove(sprite)
+                    try:
+                        self.group.remove(sprite)
+                    except Exception:
+                        pass
+                    self._respawn_wild_pokemon()
+                    return sprite
+        return None
+
     def load_object_collisions(self):
         for obj in self.tmx_data.objects:
             if obj.name and "collision" in obj.name.lower():
@@ -300,6 +528,50 @@ class Map:
                     "to_spawn": obj.properties.get("target_spawn") or obj.properties.get("to_spawn", "Player"),
                 })
         return exits
+
+    def load_items(self):
+        for obj in self.tmx_data.objects:
+            group = getattr(obj, "group", None) or getattr(obj, "parent", None)
+            group_name = getattr(group, "name", None)
+            if not group_name:
+                continue
+            if group_name.lower() != "items":
+                continue
+            image_path = obj.properties.get("image")
+            name = obj.name or "item"
+            item = ItemSprite(name, (obj.x, obj.y), image_path=image_path)
+            self.items.add(item)
+            self.group.add(item, layer=self._player_layer)
+
+    def remove_item(self, name: str):
+        for item in list(self.items):
+            if item.name == name:
+                self.items.remove(item)
+                try:
+                    self.group.remove(item)
+                except Exception:
+                    pass
+
+    def load_npcs(self):
+        for obj in self.tmx_data.objects:
+            group = getattr(obj, "group", None) or getattr(obj, "parent", None)
+            group_name = getattr(group, "name", None)
+            if not group_name:
+                continue
+            if group_name.lower() not in ("pnjs", "npcs"):
+                continue
+            image_path = obj.properties.get("image")
+            if not image_path:
+                continue
+            patrol_x = obj.properties.get("x2")
+            patrol_y = obj.properties.get("y2")
+            patrol_to = None
+            if patrol_x is not None and patrol_y is not None:
+                patrol_to = (float(patrol_x), float(patrol_y))
+            speed = obj.properties.get("speed", 1)
+            npc = PNJ(obj.x, obj.y, image_path, patrol_to=patrol_to, speed=speed)
+            self.npcs.add(npc)
+            self.group.add(npc, layer=self._player_layer)
 
     def get_interact_zones(self):
         zones = []
@@ -330,7 +602,9 @@ class Map:
                 })
         return zones
 
-    def is_collision(self, x, y):
+    def is_collision(self, x, y, ignore_water=False):
+        if ignore_water and self.is_water_tile(x, y):
+            ignore_water = True
         for rect in self.obj_collisions:
             if rect.collidepoint(x, y):
                 return True
@@ -341,7 +615,7 @@ class Map:
                 tile_y = int(y // self.tmx_data.tileheight)
                 if 0 <= tile_x < self.tmx_data.width and 0 <= tile_y < self.tmx_data.height:
                     gid = layer.data[tile_x][tile_y]
-                    if gid != 0:
+                    if gid != 0 and not (ignore_water and self.is_water_tile(x, y)):
                         return True
         return False
 
@@ -359,6 +633,15 @@ class Map:
         # On force update follower (car group.update() non appelé)
         if self.follower:
             self.follower.update()
+        if self.wild_pokemons:
+            self.wild_pokemons.update()
+
+    def set_overview_zoom(self, enabled: bool):
+        self.overview_zoom = bool(enabled)
+        if self.overview_zoom:
+            self.renderer.zoom = self.full_zoom
+        else:
+            self.renderer.zoom = self.default_zoom
 
     def draw(self, screen):
         self.group.center(self.player.rect.center)
@@ -374,4 +657,3 @@ if not hasattr(Map, "get_interaction_zone"):
         return None
 
     setattr(Map, "get_interaction_zone", get_interaction_zone)
-

@@ -22,15 +22,14 @@ class PauseMenuDS:
             "assets/menu_icons",
         ]
 
-        # ❌ Pokémon retiré (comme demandé)
+        # Menu circulaire demandé
         self.tabs = [
-            ("Pokédex", "Pokedex.png"),
-            ("Sac", "Sac_face.png"),
-            ("Pokégear", "carte.png"),
-            ("Références", "references.png"),
-            ("Sauvegarder", "sauvegarder.png"),
-            ("Options", "paramètre.png"),
-            ("Quitter le jeu", "quitter.png"),
+            ("SAC", "Sac_face.png"),
+            ("EQUIPE", "equipe.png"),
+            ("POKEDEX", "Pokedex.png"),
+            ("PARAMETRE", "paramètre.png"),
+            ("SAUVEGARDE", "sauvegarder.png"),
+            ("QUITTER LE JEU", "quitter.png"),
         ]
 
         self.selected = 0
@@ -99,14 +98,12 @@ class PauseMenuDS:
         blurred = self.blur_surface(background)
         clock = pygame.time.Clock()
 
-        menu_w = self.screen.get_width() // 2
-        menu_h = self.screen.get_height() - 100
-        menu_x = 50
-        menu_y = 50
+        w, h = self.screen.get_size()
+        center = (w // 2, h // 2)
+        radius = min(w, h) // 3
 
-        icon_size = 56
-        font = pygame.font.SysFont("arial", 32, bold=True)
-        tab_height = 68
+        font = pygame.font.SysFont("arial", 28, bold=True)
+        small_font = pygame.font.SysFont("arial", 18, bold=True)
 
         choice = None
 
@@ -117,33 +114,36 @@ class PauseMenuDS:
             overlay.fill((255, 255, 255, 70))
             self.screen.blit(overlay, (0, 0))
 
-            menu_rect = pygame.Rect(menu_x, menu_y, menu_w, menu_h)
-            pygame.draw.rect(self.screen, (235, 238, 255), menu_rect, border_radius=24)
-            pygame.draw.rect(self.screen, (150, 160, 170), menu_rect, 5, border_radius=24)
+            pygame.draw.circle(self.screen, (235, 238, 255), center, radius + 40)
+            pygame.draw.circle(self.screen, (150, 160, 170), center, radius + 40, 6)
+            pygame.draw.circle(self.screen, (245, 248, 255), center, radius - 30)
 
+            # Titre
+            title = small_font.render("MENU", True, (70, 70, 70))
+            self.screen.blit(title, (center[0] - title.get_width() // 2, center[1] - title.get_height() // 2))
+
+            # Options autour du cercle
+            total = len(self.tabs)
             for i, (tab, icon_file) in enumerate(self.tabs):
-                y = menu_y + 20 + i * tab_height
-                selected = (i == self.selected)
+                angle = -90 + (360 / total) * i
+                vector = pygame.math.Vector2(1, 0).rotate(angle)
+                x = int(center[0] + radius * 0.95 * vector.x)
+                y = int(center[1] + radius * 0.95 * vector.y)
 
                 is_ok = self._is_accessible(tab)
+                selected = (i == self.selected)
                 color = (60, 140, 255) if selected and is_ok else (50, 50, 50)
                 if not is_ok:
                     color = (120, 120, 120)
 
-                tab_rect = pygame.Rect(menu_x + 10, y, menu_w - 20, tab_height - 8)
-                if selected:
-                    pygame.draw.rect(self.screen, (210, 230, 255), tab_rect, border_radius=16)
-
-                icon = self._get_icon(icon_file, icon_size, is_ok)
-                self.screen.blit(icon, (tab_rect.x + 12, tab_rect.y + 6))
-
                 label = font.render(tab, True, color)
-                self.screen.blit(label, (tab_rect.x + icon_size + 30, tab_rect.y + 12))
+                label_rect = label.get_rect(center=(x, y))
 
-                if not is_ok:
-                    fade = pygame.Surface(tab_rect.size, pygame.SRCALPHA)
-                    fade.fill((180, 180, 180, 130))
-                    self.screen.blit(fade, tab_rect.topleft)
+                if selected:
+                    pygame.draw.circle(self.screen, (210, 230, 255), label_rect.center, label_rect.width // 2 + 18)
+                    pygame.draw.circle(self.screen, (120, 160, 220), label_rect.center, label_rect.width // 2 + 18, 3)
+
+                self.screen.blit(label, label_rect)
 
             pygame.display.flip()
 
@@ -157,16 +157,16 @@ class PauseMenuDS:
                         self.running = False
                         break
 
-                    if event.key in (pygame.K_DOWN, pygame.K_s):
+                    if event.key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
                         self.selected = (self.selected + 1) % len(self.tabs)
 
-                    if event.key in (pygame.K_UP, pygame.K_z, pygame.K_w):
+                    if event.key in (pygame.K_UP, pygame.K_z, pygame.K_w, pygame.K_LEFT, pygame.K_q):
                         self.selected = (self.selected - 1) % len(self.tabs)
 
                     if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                         tab_name = self.tabs[self.selected][0]
 
-                        if tab_name == "Quitter le jeu":
+                        if tab_name == "QUITTER LE JEU":
                             pygame.quit()
                             sys.exit()
 

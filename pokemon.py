@@ -5,6 +5,56 @@ import random
 
 from move import Move
 
+TYPE_TRANSLATIONS = {
+    "normal": "normal",
+    "fire": "feu",
+    "water": "eau",
+    "electric": "electrik",
+    "grass": "plante",
+    "ice": "glace",
+    "fighting": "combat",
+    "poison": "poison",
+    "ground": "sol",
+    "flying": "vol",
+    "psychic": "psy",
+    "bug": "insecte",
+    "rock": "roche",
+    "ghost": "spectre",
+    "dragon": "dragon",
+    "dark": "tenebres",
+    "steel": "acier",
+    "fairy": "fee",
+}
+
+TYPE_EFFECTIVENESS = {
+    "normal": {"roche": 0.5, "spectre": 0.0, "acier": 0.5},
+    "feu": {"feu": 0.5, "eau": 0.5, "plante": 2.0, "glace": 2.0, "insecte": 2.0, "roche": 0.5, "dragon": 0.5, "acier": 2.0},
+    "eau": {"feu": 2.0, "eau": 0.5, "plante": 0.5, "sol": 2.0, "roche": 2.0, "dragon": 0.5},
+    "electrik": {"eau": 2.0, "electrik": 0.5, "plante": 0.5, "sol": 0.0, "vol": 2.0, "dragon": 0.5},
+    "plante": {"feu": 0.5, "eau": 2.0, "plante": 0.5, "poison": 0.5, "sol": 2.0, "vol": 0.5, "insecte": 0.5, "roche": 2.0, "dragon": 0.5, "acier": 0.5},
+    "glace": {"feu": 0.5, "eau": 0.5, "plante": 2.0, "sol": 2.0, "vol": 2.0, "dragon": 2.0, "acier": 0.5},
+    "combat": {"normal": 2.0, "glace": 2.0, "roche": 2.0, "tenebres": 2.0, "acier": 2.0, "poison": 0.5, "vol": 0.5, "psy": 0.5, "insecte": 0.5, "spectre": 0.0, "fee": 0.5},
+    "poison": {"plante": 2.0, "poison": 0.5, "sol": 0.5, "roche": 0.5, "spectre": 0.5, "acier": 0.0, "fee": 2.0},
+    "sol": {"feu": 2.0, "electrik": 2.0, "plante": 0.5, "poison": 2.0, "vol": 0.0, "insecte": 0.5, "roche": 2.0, "acier": 2.0},
+    "vol": {"electrik": 0.5, "plante": 2.0, "combat": 2.0, "insecte": 2.0, "roche": 0.5, "acier": 0.5},
+    "psy": {"combat": 2.0, "poison": 2.0, "psy": 0.5, "tenebres": 0.0, "acier": 0.5},
+    "insecte": {"feu": 0.5, "plante": 2.0, "combat": 0.5, "poison": 0.5, "vol": 0.5, "psy": 2.0, "spectre": 0.5, "tenebres": 2.0, "acier": 0.5, "fee": 0.5},
+    "roche": {"feu": 2.0, "glace": 2.0, "combat": 0.5, "sol": 0.5, "vol": 2.0, "insecte": 2.0, "acier": 0.5},
+    "spectre": {"normal": 0.0, "psy": 2.0, "spectre": 2.0, "tenebres": 0.5},
+    "dragon": {"dragon": 2.0, "acier": 0.5, "fee": 0.0},
+    "tenebres": {"combat": 0.5, "psy": 2.0, "spectre": 2.0, "tenebres": 0.5, "fee": 0.5},
+    "acier": {"feu": 0.5, "eau": 0.5, "electrik": 0.5, "glace": 2.0, "roche": 2.0, "fee": 2.0, "acier": 0.5},
+    "fee": {"feu": 0.5, "combat": 2.0, "poison": 0.5, "dragon": 2.0, "tenebres": 2.0, "acier": 0.5},
+}
+
+def _normalize_type(type_name: str) -> str:
+    if not type_name:
+        return ""
+    normalized = str(type_name).lower().replace("é", "e").replace("è", "e").replace("ê", "e")
+    if normalized in TYPE_TRANSLATIONS.values():
+        return normalized
+    return TYPE_TRANSLATIONS.get(normalized, normalized)
+
 class Pokemon:
     """
     Pokémon class to manage the Pokémons
@@ -58,20 +108,20 @@ class Pokemon:
         self.dfs = self.update_stats("dfs")
         self.spd = self.update_stats("spd")
 
-        self.shiny = "shiny" if random.randint(1, 10) == 1 else ""
+        self.shiny = "shiny" if random.randint(1, 30) == 1 else ""
         self.xp = 0
         self.points_ev = 0
 
         self.moves: list[Move] = self.set_moves()
         self.status = ""
 
-        self.xp_to_next_level = self.xp_to_next_level()
+        self.xp_to_next_level = self.get_xp_to_next_level()
 
         self.evolution = None
 
     def get_types(self):
-        type1 = self.forms[0]['type1']
-        type2 = self.forms[0]['type2']
+        type1 = _normalize_type(self.forms[0]['type1'])
+        type2 = _normalize_type(self.forms[0]['type2'])
         if type2 == "__undef__":
             return [type1]
         return [type1, type2]
@@ -96,7 +146,7 @@ class Pokemon:
             return math.floor(((2 * base_stat + iv + math.floor(ev / 4)) * level / 100) + level / 10)
         return math.floor((((2 * base_stat + iv + math.floor(ev / 4)) * level / 100) + 5) * nature)
 
-    def xp_to_next_level(self):
+    def get_xp_to_next_level(self):
         if self.level == 100:
             return 0
         if self.experienceType == 1:
@@ -147,6 +197,65 @@ class Pokemon:
             "dfs": self.forms[0]["evDfs"],
             "spd": self.forms[0]["evSpd"]
         }
+
+    def gain_xp(self, amount: int):
+        if amount <= 0 or self.level >= 100:
+            return []
+        self.xp += amount
+        levels_gained = []
+        while self.level < 100 and self.xp >= self.xp_to_next_level:
+            self.level += 1
+            levels_gained.append(self.level)
+            old_max = self.maxhp
+            self._recalculate_stats()
+            self.xp_to_next_level = self.get_xp_to_next_level()
+            self.hp = min(self.maxhp, self.hp + (self.maxhp - old_max))
+        return levels_gained
+
+    def _recalculate_stats(self):
+        self.maxhp = self.update_stats("hp")
+        self.atk = self.update_stats("atk")
+        self.dfe = self.update_stats("dfe")
+        self.ats = self.update_stats("ats")
+        self.dfs = self.update_stats("dfs")
+        self.spd = self.update_stats("spd")
+
+    @staticmethod
+    def type_multiplier(move_type: str, defender_types: list[str]) -> float:
+        if not move_type:
+            return 1.0
+        move_type = _normalize_type(move_type)
+        multiplier = 1.0
+        for def_type in defender_types:
+            def_type = _normalize_type(def_type)
+            multiplier *= TYPE_EFFECTIVENESS.get(move_type, {}).get(def_type, 1.0)
+        return multiplier
+
+    @staticmethod
+    def calculate_damage(attacker: "Pokemon", defender: "Pokemon", move: Move, critical: bool = False) -> dict:
+        if move is None or not move.power:
+            return {"damage": 0, "modifier": 0, "effectiveness": 0}
+
+        category = str(getattr(move, "category", "")).lower()
+        if category in ("special", "sp", "special_attack"):
+            attack_stat = max(1, attacker.ats)
+            defense_stat = max(1, defender.dfs)
+        else:
+            attack_stat = max(1, attacker.atk)
+            defense_stat = max(1, defender.dfe)
+
+        level_factor = (2 * attacker.level / 5) + 2
+        base_damage = (((level_factor * move.power * (attack_stat / defense_stat)) / 50) + 2)
+
+        move_type = _normalize_type(move.type) if move.type else ""
+        stab = 1.5 if move_type and move_type in [_normalize_type(t) for t in attacker.type] else 1.0
+        effectiveness = Pokemon.type_multiplier(move_type, defender.type)
+        crit = 1.5 if critical else 1.0
+        rand = random.uniform(0.85, 1.0)
+
+        modifier = stab * effectiveness * crit * rand
+        damage = max(1, int(base_damage * modifier))
+        return {"damage": damage, "modifier": modifier, "effectiveness": effectiveness}
 
     def to_dict(self):
         return {

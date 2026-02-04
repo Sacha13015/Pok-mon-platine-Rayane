@@ -12,6 +12,13 @@ class Player(pygame.sprite.Sprite):
 
         self.walk_speed = 2
         self.run_speed = 3
+        self.bike_speed = 4
+        self.is_on_bike = False
+        self.has_bike = False
+        self.seated = False
+        self.has_surf = False
+        self.is_surfing = False
+        self.blocked_reason = None
 
         self.spritesheet = pygame.image.load(
             f"assets/sprite/hero_01_{genre}_walk.png"
@@ -50,7 +57,14 @@ class Player(pygame.sprite.Sprite):
     def try_move(self, dx, dy):
         if self.map:
             future_rect = self.rect.move(dx, dy)
-            if self.map.is_collision(future_rect.centerx, future_rect.centery):
+            is_water = False
+            if hasattr(self.map, "is_water_tile"):
+                is_water = self.map.is_water_tile(future_rect.centerx, future_rect.centery)
+            if is_water and not self.has_surf:
+                self.blocked_reason = "water"
+                return False
+            self.is_surfing = is_water and self.has_surf
+            if self.map.is_collision(future_rect.centerx, future_rect.centery, ignore_water=self.is_surfing):
                 return False
             if hasattr(self.map, "npcs") and pygame.sprite.spritecollideany(self, self.map.npcs):
                 return False
@@ -66,7 +80,9 @@ class Player(pygame.sprite.Sprite):
         moved = False
 
         speed = self.walk_speed
-        if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+        if self.is_on_bike:
+            speed = self.bike_speed
+        elif keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
             speed = self.run_speed
 
         if keys[pygame.K_UP] or keys[pygame.K_z]:
@@ -82,6 +98,9 @@ class Player(pygame.sprite.Sprite):
             self.direction = 2
             dx = speed
 
+        if self.seated and (dx != 0 or dy != 0):
+            self.seated = False
+
         if dx != 0 or dy != 0:
             moved = self.try_move(dx, dy)
 
@@ -90,4 +109,23 @@ class Player(pygame.sprite.Sprite):
             self.animation_timer = 0
 
         self.image = self.images[self.direction][self.frame]
-c
+        if self.seated:
+            self._apply_seated_pose()
+
+    def _apply_seated_pose(self):
+        base = self.image
+        w, h = base.get_size()
+        seated_h = max(1, int(h * 0.7))
+        seated_img = pygame.transform.smoothscale(base, (w, seated_h))
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        surf.blit(seated_img, (0, h - seated_h))
+        self.image = surf
+        self.rect = self.image.get_rect(topleft=self.rect.topleft)
+
+    def set_seated(self, seated: bool):
+        self.seated = bool(seated)
+
+    def switch_bike(self):
+        if not self.has_bike:
+            return
+        self.is_on_bike = not self.is_on_bike

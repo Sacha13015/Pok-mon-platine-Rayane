@@ -36,9 +36,24 @@ class Game:
         self.has_bag = False
         self.has_pokedex = False
         self.has_team = False
+        self.has_bike = False
+        self.has_surf = False
+        self.overview_mode = False
+        self.day_night_cycle_ms = 60_000
+        self.day_duration_ms = 30_000
+        self.day_night_start = pygame.time.get_ticks()
+        self.easter_input = ""
+        self.sacha_cooldown_ms = 0
+        self.surf_block_cooldown_ms = 1200
+        self.last_surf_block_time = 0
 
         # ✅ équipe: slot 1 = follower
         self.team = []
+        self.team_order_path = self._team_order_save_path()
+        saved_order = self._load_team_order()
+        if saved_order:
+            self.team = [self._make_team_entry(pid) for pid in saved_order]
+            self.has_team = True
 
         # FLAGS HISTOIRE
         self.telecommande = False
@@ -87,6 +102,9 @@ class Game:
     # FOLLOWER (slot 1 équipe) + LIVE SYNC
     # ----------------------------
     def _find_best_pokemon_sprite(self, pokemon_id: str):
+        pokemon_id = self._team_entry_id(pokemon_id)
+        if not pokemon_id:
+            return None
         base_dir = os.path.dirname(os.path.abspath(__file__))  # .../code
         folder = os.path.normpath(os.path.join(base_dir, POKEMON_ASSETS_DIR))
 
@@ -142,6 +160,50 @@ class Game:
         self.team = list(new_team_list)
         self.has_team = len(self.team) > 0
         self.sync_follower_with_team()
+        self._save_team_order(self.team)
+
+    def _team_entry_id(self, entry):
+        if entry is None:
+            return None
+        if isinstance(entry, str):
+            return entry
+        if isinstance(entry, dict):
+            return entry.get("id") or entry.get("dbSymbol") or entry.get("name")
+        return getattr(entry, "id", None) or getattr(entry, "dbSymbol", None) or getattr(entry, "name", None)
+
+    def _make_team_entry(self, pokemon_id: str):
+        return {
+            "id": pokemon_id,
+            "level": 5,
+            "hp": 20,
+            "maxhp": 20,
+            "icon": None,
+        }
+
+    def _team_order_save_path(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_dir, "app", "saves", "team_order.json")
+
+    def _save_team_order(self, team_list):
+        order = [self._team_entry_id(entry) for entry in team_list if self._team_entry_id(entry)]
+        if not order:
+            return
+        save_dir = os.path.dirname(self.team_order_path)
+        os.makedirs(save_dir, exist_ok=True)
+        with open(self.team_order_path, "w", encoding="utf-8") as f:
+            import json
+            json.dump({"order": order}, f, indent=2, ensure_ascii=False)
+
+    def _load_team_order(self):
+        if not os.path.exists(self.team_order_path):
+            return []
+        try:
+            import json
+            with open(self.team_order_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("order", [])
+        except Exception:
+            return []
 
     # ----------------------------
     # MAP LOADING
@@ -157,6 +219,11 @@ class Game:
         spawn_pos = spawns.get(spawn_name, (100, 100))
 
         self.player = Player(spawn_pos[0], spawn_pos[1], self.genre)
+        self.player.has_bike = self.has_bike
+        self.player.has_surf = self.has_surf
+        if map_name == "chambre_joueur":
+            self.player.set_seated(True)
+            self.player.direction = 3
 
         follower_sprite = self.get_team_follower_sprite()
         self.map = Map(
@@ -167,6 +234,8 @@ class Game:
             follower_debug=True
         )
         self.player.map = self.map
+        if self.overview_mode and hasattr(self.map, "set_overview_zoom"):
+            self.map.set_overview_zoom(True)
 
         if map_name == "chambre_joueur":
             if not self.historia_en_cours:
@@ -303,21 +372,43 @@ class Game:
     # ----------------------------
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_b:
+                from dialog_box import show_dialog_box_overlay
+                if not self.has_bike:
+                    show_dialog_box_overlay(self.screen, ["Tu n'as pas encore ton vélo."])
+                else:
+                    self.player.switch_bike()
+
+            if event.key == pygame.K_n:
+                self.overview_mode = not self.overview_mode
+                if hasattr(self.map, "set_overview_zoom"):
+                    self.map.set_overview_zoom(self.overview_mode)
+
             # Pause
             if event.key == pygame.K_ESCAPE:
                 # ✅ IMPORTANT: les clés doivent matcher PauseMenuDS.tabs
                 # (tu as retiré "Pokémon", donc on l'enlève ici aussi)
                 can_access = {
-                    "Pokédex": self.has_pokedex,
-                    "Sac": self.has_bag,
-                    "Pokégear": True,
-                    "Références": True,
-                    "Sauvegarder": True,
-                    "Options": True,
-                    "Quitter le jeu": True,
+                    "POKEDEX": self.has_pokedex,
+                    "SAC": self.has_bag,
+                    "EQUIPE": self.has_team,
+                    "PARAMETRE": True,
+                    "SAUVEGARDE": True,
+                    "QUITTER LE JEU": True,
                 }
 
-                PauseMenuDS(self.screen, can_access).run()
+                choice = PauseMenuDS(self.screen, can_access).run()
+                if choice == "SAC":
+                    from bag_menu import BagMenu
+                    BagMenu(self.screen).run()
+                if choice == "EQUIPE":
+                    from team_menu_ds import TeamMenuDS
+                    from pokemon_i18n import fr_name
+                    team_entries = list(self.team)
+                    menu = TeamMenuDS(self.screen, team_entries, name_fn=fr_name)
+                    new_team, changed = menu.run()
+                    if changed:
+                        self.set_team_order(new_team)
 
             # Fullscreen
             if event.key == pygame.K_F11:
@@ -330,6 +421,8 @@ class Game:
 
             # Interaction
             if event.key in (pygame.K_RETURN, pygame.K_e):
+                if self._try_follower_interaction():
+                    return
                 zone = self.map.get_interaction_zone(self.player.rect)
                 if zone:
                     from dialog_box import show_dialog_box_overlay
@@ -353,8 +446,9 @@ class Game:
                             self.starter_chosen = chosen_id
 
                             # ✅ équipe officielle: starter devient slot 1
-                            self.team = [chosen_id]
+                            self.team = [self._make_team_entry(chosen_id)]
                             self.has_team = True
+                            self._save_team_order(self.team)
 
                             show_dialog_box_overlay(self.screen, [f"Tu as choisi {fr_name(chosen_id)} !"])
                             print("Starter choisi:", chosen_id)
@@ -367,6 +461,8 @@ class Game:
                     if "sac" in name_lower and not self.has_bag:
                         show_dialog_box_overlay(self.screen, ["Tu as récupéré ton sac.", "Appuie sur [Échap] pour accéder au menu."])
                         self.has_bag = True
+                        if hasattr(self.map, "remove_item"):
+                            self.map.remove_item("sac")
 
                     elif "panneau_chambre2" in name_lower:
                         dialogue = get_dialogue(zone["name"], deja_remonte=self.just_remonte_chambre)
@@ -377,6 +473,40 @@ class Game:
                     else:
                         dialogue = get_dialogue(zone["name"])
                         show_dialog_box_overlay(self.screen, dialogue)
+
+    def _try_follower_interaction(self):
+        follower = getattr(self.map, "follower", None)
+        if not follower:
+            return False
+
+        player_center = self.player.rect.center
+        follower_center = follower.rect.center
+        dx = follower_center[0] - player_center[0]
+        dy = follower_center[1] - player_center[1]
+        distance_sq = dx * dx + dy * dy
+
+        if distance_sq > 60 * 60:
+            return False
+
+        direction = getattr(self.player, "direction", 0)
+        facing = False
+        if direction == 0 and dy > 0 and abs(dx) < 40:
+            facing = True
+        elif direction == 3 and dy < 0 and abs(dx) < 40:
+            facing = True
+        elif direction == 1 and dx < 0 and abs(dy) < 40:
+            facing = True
+        elif direction == 2 and dx > 0 and abs(dy) < 40:
+            facing = True
+
+        if not facing:
+            return False
+
+        from dialog_box import show_dialog_box_overlay
+        if hasattr(follower, "play_happy_animation"):
+            follower.play_happy_animation()
+        show_dialog_box_overlay(self.screen, ["Ton Pokémon te regarde avec joie !"])
+        return True
 
                     if "pokedex" in name_lower:
                         self.has_pokedex = True
@@ -392,9 +522,54 @@ class Game:
                     else:
                         show_dialog_box_overlay(self.screen, ["Elle te sert à rien ici, range-moi ça !"])
 
+            if self.current_map_name == "Bourrely" and event.unicode:
+                self._handle_sacha_easter_egg(event.unicode)
+
+    def _handle_sacha_easter_egg(self, char: str):
+        if not char.isalpha():
+            return
+        now = pygame.time.get_ticks()
+        if now < self.sacha_cooldown_ms:
+            return
+        self.easter_input = (self.easter_input + char.lower())[-5:]
+        if self.easter_input.endswith("sacha"):
+            self.sacha_cooldown_ms = now + 2000
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            candidates = [
+                os.path.join(base_dir, "assets", "eastereggs", "SACHA.mp3"),
+                os.path.join(base_dir, "assets", "eastereggs", "SACHA.wav"),
+                os.path.join(base_dir, "assets", "eastereggs", "SACHA.ogg"),
+            ]
+            for path in candidates:
+                if os.path.exists(path):
+                    try:
+                        pygame.mixer.Sound(path).play()
+                    except Exception:
+                        pass
+                    break
+
     def update(self):
         self.player.update()
         self.map.update()
+
+        if getattr(self.player, "blocked_reason", None) == "water":
+            now = pygame.time.get_ticks()
+            if now - self.last_surf_block_time >= self.surf_block_cooldown_ms:
+                from dialog_box import show_dialog_box_overlay
+                show_dialog_box_overlay(
+                    self.screen,
+                    ["Ah, à moins que tu possèdes le Thousand Sunny dans la poche...",
+                     "Reviens avec la capacité SURF, mon pote !"]
+                )
+                self.last_surf_block_time = now
+            self.player.blocked_reason = None
+
+        encounter = self.map.check_wild_encounter(self.player.rect)
+        if encounter:
+            from dialog_box import show_dialog_box_overlay
+            species_name = getattr(encounter, "species", "")
+            display_name = self.map._format_species_name(species_name) if hasattr(self.map, "_format_species_name") else "pokémon"
+            show_dialog_box_overlay(self.screen, [f"Un {display_name} sauvage apparaît !"])
 
         # --- EVENT GLITCH sur Bourrely ---
         if self.current_map_name == "Bourrely" and not self.glitch_event_done and not self.glitch_scene_running:
@@ -426,6 +601,15 @@ class Game:
 
     def draw(self):
         self.map.draw(self.screen)
+        if self._is_night():
+            overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            overlay.fill((30, 40, 90, 110))
+            self.screen.blit(overlay, (0, 0))
+
+    def _is_night(self) -> bool:
+        elapsed = pygame.time.get_ticks() - self.day_night_start
+        cycle_pos = elapsed % self.day_night_cycle_ms
+        return cycle_pos >= self.day_duration_ms
 
     def run(self):
         clock = pygame.time.Clock()
