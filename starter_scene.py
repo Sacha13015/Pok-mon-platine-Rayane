@@ -92,7 +92,7 @@ class StarterChoiceScene3D:
         bag_sound_path: str | None = None,
         confirm_sound_path: str | None = None,
         camera_move_frames: int = 6,
-        # ✅ 4 starters: Bulbizarre, Salamèche, Carapuce, Pikachu
+        # ✅ starters: Bulbizarre, Salamèche, Carapuce + Pikachu easter egg
         starter_ids: tuple[int, int, int, int] = (1, 2, 3, 4),
     ):
         self.screen = screen
@@ -154,7 +154,7 @@ class StarterChoiceScene3D:
 
         self.camera = _Camera(self.screen.get_size())
 
-        # ✅ 4 balls: on étale mieux
+        # ✅ positions balles (3 + pikachu)
         self.ball_pos = [
             (-58.0, -4.0, 34.0),  # left
             (-16.0, -4.0, 62.0),  # mid-left
@@ -177,6 +177,9 @@ class StarterChoiceScene3D:
 
         self.sel_index = 1  # default
         self.preview_choice = 0
+        self.available_count = 3
+        self.pikachu_unlocked = False
+        self.pikachu_cycles = 0
 
         self.cam_t = 0
         self.tw_pitch = _Tween3(-30.0, -50.0, self.camera_move_frames)
@@ -321,14 +324,20 @@ class StarterChoiceScene3D:
                 self.key_cooldown = 110
                 return
 
-        # selection loop (4)
-        n = len(self.ball_pos)
+        # selection loop
+        n = self.available_count
         if key in (pygame.K_LEFT, pygame.K_q):
+            prev = self.sel_index
             self.sel_index = (self.sel_index - 1) % n
+            if prev == 0 and self.sel_index == n - 1:
+                self._count_pikachu_cycle()
             self._play(self.snd_select)
             self.key_cooldown = 90
         elif key in (pygame.K_RIGHT, pygame.K_d):
+            prev = self.sel_index
             self.sel_index = (self.sel_index + 1) % n
+            if prev == n - 1 and self.sel_index == 0:
+                self._count_pikachu_cycle()
             self._play(self.snd_select)
             self.key_cooldown = 90
         elif key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
@@ -487,7 +496,7 @@ class StarterChoiceScene3D:
             return
 
         items = []
-        for i, (x, y, z) in enumerate(self.ball_pos):
+        for i, (x, y, z) in enumerate(self.ball_pos[: self.available_count]):
             sx, sy, sc = self.camera.project(x, y, z)
             items.append((sc, i, sx, sy))
         items.sort()
@@ -506,9 +515,20 @@ class StarterChoiceScene3D:
                 pygame.draw.circle(self.screen, (255, 255, 255), (sx, sy), r, 5)
                 pygame.draw.circle(self.screen, (0, 0, 0), (sx, sy), r, 2)
 
+            sid = self.starter_ids[i]
+            preview = self.poke_img.get(sid)
+            if preview:
+                target = int(34 * sc)
+                scale = min(target / max(1, preview.get_width()), target / max(1, preview.get_height()))
+                self._blit_centered_scaled(preview, sx, sy - int(10 * sc), scale)
+
             if is_sel:
                 ring_r = int(36 * sc * pulse)
                 pygame.draw.circle(self.screen, (255, 255, 200), (sx, sy + int(6 * sc)), ring_r, 3)
+
+            if self.pikachu_unlocked and i == 3:
+                glow_r = int(46 * sc)
+                pygame.draw.circle(self.screen, (255, 240, 180), (sx, sy), glow_r, 4)
 
     def _draw_cursor(self):
         if self.main_state < 3 or self.main_state == 4:
@@ -529,6 +549,14 @@ class StarterChoiceScene3D:
             pts = [(cx, cy), (cx - 14, cy + 22), (cx + 14, cy + 22)]
             pygame.draw.polygon(self.screen, (255, 255, 255), pts)
             pygame.draw.polygon(self.screen, (0, 0, 0), pts, 2)
+
+    def _count_pikachu_cycle(self):
+        if self.pikachu_unlocked:
+            return
+        self.pikachu_cycles += 1
+        if self.pikachu_cycles >= 3:
+            self.pikachu_unlocked = True
+            self.available_count = 4
 
     def _draw_preview(self):
         if self.main_state != 4:

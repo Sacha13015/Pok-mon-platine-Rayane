@@ -3,7 +3,7 @@ import pygame
 class BagMenu:
     def __init__(self, screen):
         self.screen = screen
-        self.tabs = ["Objets", "Pokéballs", "Baies"]
+        self.tabs = ["Objets", "Pokéballs", "Soins", "CT/CS", "Baies", "Objets clés"]
         self.selected = 0
         self.font = pygame.font.SysFont("Arial", 30)
         self.running = False
@@ -26,9 +26,11 @@ class BagMenu:
             # Affichage simple (améliorable)
             self.screen.fill((15,30,60))
             w, h = self.screen.get_size()
+            slot_w = max(1, w // len(self.tabs))
             for i, tab in enumerate(self.tabs):
-                col = (255,255,0) if i == self.selected else (180,180,180)
+                col = (255, 255, 0) if i == self.selected else (180, 180, 180)
                 txt = self.font.render(tab, True, col)
-                self.screen.blit(txt, (w//2 - 150 + i*120, h//2))
+                x = i * slot_w + (slot_w // 2 - txt.get_width() // 2)
+                self.screen.blit(txt, (x, h // 4))
             pygame.display.flip()
             clock.tick(60)
